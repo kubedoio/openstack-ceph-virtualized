@@ -83,7 +83,7 @@ for i in $(seq 1 "$NODE_COUNT"); do
 done
 
 ### --------------------------------------------------------------------------
-### 5. Prepare & run the remote deployer  
+### 5. Prepare & run the remote deployer
 ### since we use cloudinit-ubuntu image default directory is /home/ubuntu
 ### --------------------------------------------------------------------------
 REMOTE_SCRIPT_PATH="/home/ubuntu/rook-ceph-deploy.sh"
@@ -112,7 +112,8 @@ sudo apt install -y git python3-venv python3-pip jq curl
 curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 chmod +x kubectl && sudo mv kubectl /usr/local/bin
 
-sudo dpkg -i $(wget -qO- https://github.com/derailed/k9s/releases/download/v0.50.6/k9s_linux_amd64.deb)
+wget https://github.com/derailed/k9s/releases/download/v0.50.6/k9s_linux_amd64.deb
+sudo dpkg -i k9s_linux_amd64.deb
 
 # ---------------------------------------------------------------------------
 # 2. Kubespray
