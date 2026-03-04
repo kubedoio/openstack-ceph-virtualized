@@ -133,7 +133,7 @@ if hv_is_proxmox; then
 
 elif hv_is_cloudhypervisor; then
     # Cloud Hypervisor: generate NoCloud ISO
-    source "$SCRIPT_DIR/lib/common/cloudinit.sh"
+    # Note: cloudinit.sh functions are already loaded by cloudhypervisor.sh
 
     VM_DIR="$CH_VM_DIR/vm-${VM_ID}"
     CLOUDINIT_ISO="${VM_DIR}/cloudinit.iso"
