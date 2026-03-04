@@ -211,20 +211,34 @@ cloudhypervisor_start_vm() {
     cpus=$(jq -r '.cpus.boot_vcpus' "$config_file")
     memory_mb=$(($(jq -r '.memory.size' "$config_file") / 1024 / 1024))
 
-    # Get disks
-    local disk_args=()
+    # Get disks - Cloud Hypervisor expects comma-separated paths in single --disk argument
+    local disk_paths=()
     local disk_count
     disk_count=$(jq -r '.disks | length' "$config_file")
     for ((i=0; i<disk_count; i++)); do
         local disk_path
         disk_path=$(jq -r ".disks[$i].path" "$config_file")
+        local disk_readonly
+        disk_readonly=$(jq -r ".disks[$i].readonly // false" "$config_file")
+
         if [[ -f "$disk_path" ]]; then
-            disk_args+=(--disk "path=${disk_path}")
+            if [[ "$disk_readonly" == "true" ]]; then
+                disk_paths+=("path=${disk_path},readonly=on")
+            else
+                disk_paths+=("path=${disk_path}")
+            fi
         fi
     done
 
-    # Get network interfaces (TAP devices)
-    local net_args=()
+    # Construct disk argument
+    local disk_arg=""
+    if [[ ${#disk_paths[@]} -gt 0 ]]; then
+        # Join paths with space (each path= is a separate disk)
+        disk_arg="--disk $(IFS=' ' ; echo "${disk_paths[*]}")"
+    fi
+
+    # Get network interfaces (TAP devices) - similar format as disks
+    local net_paths=()
     local net_count
     net_count=$(jq -r '.net | length' "$config_file")
     for ((i=0; i<net_count; i++)); do
@@ -235,9 +249,17 @@ cloudhypervisor_start_vm() {
             local bridge
             bridge=$(jq -r ".net[$i].bridge" "$config_file")
             create_tap_device "$tap_name" "$bridge" 2>/dev/null || true
-            net_args+=(--net "tap=${tap_name},mac=$(jq -r ".net[$i].mac" "$config_file")")
+            local mac
+            mac=$(jq -r ".net[$i].mac" "$config_file")
+            net_paths+=("tap=${tap_name},mac=${mac}")
         fi
     done
+
+    # Construct network argument
+    local net_arg=""
+    if [[ ${#net_paths[@]} -gt 0 ]]; then
+        net_arg="--net $(IFS=' ' ; echo "${net_paths[*]}")"
+    fi
 
     # Check for kernel/initrd (for direct kernel boot)
     local kernel_path="${vm_dir}/vmlinuz"
@@ -248,12 +270,13 @@ cloudhypervisor_start_vm() {
     fi
 
     # Launch Cloud Hypervisor
-    cloud-hypervisor \
+    # Note: Use eval to properly expand the disk_arg and net_arg strings
+    eval cloud-hypervisor \
         --api-socket "$api_socket" \
         --cpus "boot=${cpus}" \
         --memory "size=${memory_mb}M" \
-        "${disk_args[@]}" \
-        "${net_args[@]}" \
+        $disk_arg \
+        $net_arg \
         --serial tty \
         --console off \
         2>"${vm_dir}/console.log" &
