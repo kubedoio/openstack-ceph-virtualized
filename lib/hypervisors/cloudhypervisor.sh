@@ -9,14 +9,14 @@
 set -euo pipefail
 
 # Source common utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$SCRIPT_DIR/common/network.sh"
-source "$SCRIPT_DIR/common/storage.sh"
-source "$SCRIPT_DIR/common/cloudinit.sh"
+HYPERVISOR_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$HYPERVISOR_LIB_DIR/common/network.sh"
+source "$HYPERVISOR_LIB_DIR/common/storage.sh"
+source "$HYPERVISOR_LIB_DIR/common/cloudinit.sh"
 
 # Load configuration
-if [[ -f "$SCRIPT_DIR/../rook_ceph.conf" ]]; then
-    source "$SCRIPT_DIR/../rook_ceph.conf"
+if [[ -f "$HYPERVISOR_LIB_DIR/../rook_ceph.conf" ]]; then
+    source "$HYPERVISOR_LIB_DIR/../rook_ceph.conf"
 fi
 
 # Cloud Hypervisor defaults
