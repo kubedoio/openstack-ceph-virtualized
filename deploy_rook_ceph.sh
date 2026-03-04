@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # deploy_rook_ceph.sh
-#   – Runs *inside* a Proxmox node.
+#   – Runs on a hypervisor node (Proxmox or Cloud Hypervisor host).
 #   – Creates VMs, installs Kubernetes with Kubespray,
 #     and deploys Rook-Ceph.
 #   – All user-changeable values live in rook_ceph.conf.
@@ -10,15 +10,43 @@
 set -euo pipefail
 
 ### --------------------------------------------------------------------------
-### 0. Load configuration  ---------------------------------------------------
+### 0. Load configuration and hypervisor abstraction  ------------------------
 ### --------------------------------------------------------------------------
-CONFIG_FILE="$(dirname "$0")/rook_ceph.conf"
+SCRIPT_DIR="$(dirname "$0")"
+CONFIG_FILE="$SCRIPT_DIR/rook_ceph.conf"
+
 if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "Configuration file $CONFIG_FILE not found. Aborting."
   exit 1
 fi
+
 # shellcheck source=/dev/null
 source "$CONFIG_FILE"
+
+# Load hypervisor abstraction layer
+source "$SCRIPT_DIR/lib/hypervisor.sh"
+
+# Initialize hypervisor
+hv_init || {
+  echo "ERROR: Failed to initialize hypervisor"
+  exit 1
+}
+
+echo "INFO: Using hypervisor: $(hv_get_type)"
+echo ""
+
+# Setup network infrastructure for Cloud Hypervisor
+if hv_is_cloudhypervisor; then
+  echo "INFO: Setting up Cloud Hypervisor network infrastructure..."
+  source "$SCRIPT_DIR/lib/common/network.sh"
+
+  if ! setup_cloudhypervisor_network 2>/dev/null; then
+    echo "WARN: Failed to setup network bridges automatically"
+    echo "WARN: You may need to run with sudo or setup manually"
+    echo "WARN: Run: sudo $SCRIPT_DIR/setup-cloud-hypervisor.sh"
+  fi
+  echo ""
+fi
 
 ### Derived values
 OS_LAST_ID=$((OS0_ID + NODE_COUNT))                        # highest VM-ID used
@@ -42,7 +70,7 @@ echo "Creating jump host (os0)…"
                "${VM_PREFIX}0.cluster.local" \
                "${NODE_LIST[0]}/24" "$GATEWAY"
 
-qm start "$OS0_ID"
+hv_start_vm "$OS0_ID"
 sleep 20    # give cloud-init SSH time to appear
 
 echo "Generating SSH key on os0 and collecting it locally…"
@@ -71,7 +99,7 @@ done
 for idx in "${OPENSTACK_NODE_INDEXES[@]}"; do
   VM_ID=$((OS0_ID + idx))
   echo "Setting ${VM_PREFIX}${idx} (VM-ID $VM_ID) memory to ${OPENSTACK_MEMORY_MB} MiB"
-  qm set "$VM_ID" --memory "$OPENSTACK_MEMORY_MB"
+  hv_set_memory "$VM_ID" "$OPENSTACK_MEMORY_MB"
 done
 
 ### --------------------------------------------------------------------------
@@ -79,7 +107,7 @@ done
 ### --------------------------------------------------------------------------
 echo "Booting all worker VMs…"
 for i in $(seq 1 "$NODE_COUNT"); do
-  qm start $((OS0_ID + i))
+  hv_start_vm $((OS0_ID + i))
 done
 
 ### --------------------------------------------------------------------------
