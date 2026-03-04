@@ -248,9 +248,21 @@ resize_disk_absolute() {
         return 1
     fi
 
-    # Get current size
+    # Get current size (handle both byte values and human-readable formats)
+    local current_size_info
+    current_size_info=$(qemu-img info "$disk_path" | grep "virtual size:" | head -n1)
+
+    # Extract size in bytes (format: "virtual size: 2.2G (2361393152 bytes)")
     local current_size_bytes
-    current_size_bytes=$(qemu-img info "$disk_path" | grep "virtual size" | awk '{print $3}' | tr -d '(')
+    current_size_bytes=$(echo "$current_size_info" | grep -oP '\(\K\d+(?= bytes\))' || echo "0")
+
+    # If we couldn't get bytes, try to parse from human format
+    if [[ "$current_size_bytes" == "0" ]]; then
+        local size_human
+        size_human=$(echo "$current_size_info" | awk '{print $3}')
+        # Convert human format (e.g., "2.2G") to GB integer
+        current_size_bytes=$(echo "$size_human" | sed 's/G$//' | awk '{printf "%.0f\n", $1 * 1024 * 1024 * 1024}')
+    fi
 
     local current_size_gb=$((current_size_bytes / 1024 / 1024 / 1024))
 

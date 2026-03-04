@@ -743,15 +743,28 @@ cloudhypervisor_set_cloudinit() {
     local vm_dir
     vm_dir=$(_ch_vm_dir "$vm_id")
 
-    # Copy cloud-init ISO to VM directory
-    cp "$cloudinit_iso" "${vm_dir}/cloudinit.iso"
+    local target_iso="${vm_dir}/cloudinit.iso"
+
+    # Only copy if source and destination are different
+    if [[ "$cloudinit_iso" != "$target_iso" ]]; then
+        cp "$cloudinit_iso" "$target_iso" || {
+            echo "ERROR: Failed to copy cloud-init ISO" >&2
+            return 1
+        }
+    fi
 
     # Add as readonly disk
     local config_file
     config_file=$(_ch_vm_config "$vm_id")
 
+    # Check if cloudinit ISO is already in config
+    if jq -e '.disks[] | select(.path == "'"$target_iso"'")' "$config_file" >/dev/null 2>&1; then
+        echo "INFO: Cloud-init ISO already attached to VM $vm_id" >&2
+        return 0
+    fi
+
     local disk_entry
-    disk_entry=$(jq -n --arg path "${vm_dir}/cloudinit.iso" '{path: $path, readonly: true}')
+    disk_entry=$(jq -n --arg path "$target_iso" '{path: $path, readonly: true}')
 
     jq ".disks += [$disk_entry]" "$config_file" > "${config_file}.tmp"
     mv "${config_file}.tmp" "$config_file"
