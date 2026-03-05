@@ -24,6 +24,7 @@ HYPERVISOR_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Global variable to store detected/configured hypervisor
 HV_TYPE=""
+HV_FUNC_PREFIX=""  # Function name prefix (dashes converted to underscores)
 HV_INITIALIZED=0
 
 ###############################################################################
@@ -107,6 +108,10 @@ hv_init() {
 
     echo "INFO: Using hypervisor: $HV_TYPE" >&2
 
+    # Convert dashes to underscores for function names
+    # (bash function names cannot contain dashes)
+    HV_FUNC_PREFIX="${HV_TYPE//-/_}"
+
     # Load hypervisor-specific implementation
     local impl_file="$HYPERVISOR_LIB_DIR/hypervisors/${HV_TYPE}.sh"
 
@@ -118,8 +123,8 @@ hv_init() {
     source "$impl_file"
 
     # Call hypervisor-specific initialization if available
-    if declare -f "${HV_TYPE}_init" >/dev/null 2>&1; then
-        "${HV_TYPE}_init"
+    if declare -f "${HV_FUNC_PREFIX}_init" >/dev/null 2>&1; then
+        "${HV_FUNC_PREFIX}_init"
     fi
 
     HV_INITIALIZED=1
@@ -134,35 +139,35 @@ hv_init() {
 # Args: vm_id name cores memory_mb
 hv_create_vm() {
     hv_init || return 1
-    "${HV_TYPE}_create_vm" "$@"
+    "${HV_FUNC_PREFIX}_create_vm" "$@"
 }
 
 # Start a VM
 # Args: vm_id
 hv_start_vm() {
     hv_init || return 1
-    "${HV_TYPE}_start_vm" "$@"
+    "${HV_FUNC_PREFIX}_start_vm" "$@"
 }
 
 # Stop a VM
 # Args: vm_id
 hv_stop_vm() {
     hv_init || return 1
-    "${HV_TYPE}_stop_vm" "$@"
+    "${HV_FUNC_PREFIX}_stop_vm" "$@"
 }
 
 # Shutdown a VM gracefully
 # Args: vm_id
 hv_shutdown_vm() {
     hv_init || return 1
-    "${HV_TYPE}_shutdown_vm" "$@"
+    "${HV_FUNC_PREFIX}_shutdown_vm" "$@"
 }
 
 # Destroy/delete a VM
 # Args: vm_id
 hv_destroy_vm() {
     hv_init || return 1
-    "${HV_TYPE}_destroy_vm" "$@"
+    "${HV_FUNC_PREFIX}_destroy_vm" "$@"
 }
 
 # Check if VM exists
@@ -170,7 +175,7 @@ hv_destroy_vm() {
 # Returns: 0 if exists, 1 if not
 hv_vm_exists() {
     hv_init || return 1
-    "${HV_TYPE}_vm_exists" "$@"
+    "${HV_FUNC_PREFIX}_vm_exists" "$@"
 }
 
 # Get VM status
@@ -178,14 +183,14 @@ hv_vm_exists() {
 # Returns: running, stopped, or unknown
 hv_vm_status() {
     hv_init || return 1
-    "${HV_TYPE}_vm_status" "$@"
+    "${HV_FUNC_PREFIX}_vm_status" "$@"
 }
 
 # Wait for VM to be running
 # Args: vm_id timeout_seconds
 hv_wait_vm_running() {
     hv_init || return 1
-    "${HV_TYPE}_wait_vm_running" "$@"
+    "${HV_FUNC_PREFIX}_wait_vm_running" "$@"
 }
 
 ###############################################################################
@@ -196,21 +201,21 @@ hv_wait_vm_running() {
 # Args: vm_id cores
 hv_set_cores() {
     hv_init || return 1
-    "${HV_TYPE}_set_cores" "$@"
+    "${HV_FUNC_PREFIX}_set_cores" "$@"
 }
 
 # Set VM memory
 # Args: vm_id memory_mb
 hv_set_memory() {
     hv_init || return 1
-    "${HV_TYPE}_set_memory" "$@"
+    "${HV_FUNC_PREFIX}_set_memory" "$@"
 }
 
 # Set VM to use template/clone from template
 # Args: vm_id template_id
 hv_clone_template() {
     hv_init || return 1
-    "${HV_TYPE}_clone_template" "$@"
+    "${HV_FUNC_PREFIX}_clone_template" "$@"
 }
 
 ###############################################################################
@@ -221,14 +226,14 @@ hv_clone_template() {
 # Args: vm_id bridge [mac] [model]
 hv_add_network() {
     hv_init || return 1
-    "${HV_TYPE}_add_network" "$@"
+    "${HV_FUNC_PREFIX}_add_network" "$@"
 }
 
 # Set network interface configuration
 # Args: vm_id interface_index bridge [mac] [model]
 hv_set_network() {
     hv_init || return 1
-    "${HV_TYPE}_set_network" "$@"
+    "${HV_FUNC_PREFIX}_set_network" "$@"
 }
 
 ###############################################################################
@@ -239,21 +244,21 @@ hv_set_network() {
 # Args: vm_id disk_path size_gb [disk_index]
 hv_add_disk() {
     hv_init || return 1
-    "${HV_TYPE}_add_disk" "$@"
+    "${HV_FUNC_PREFIX}_add_disk" "$@"
 }
 
 # Resize VM disk
 # Args: vm_id disk_index size_gb
 hv_resize_disk() {
     hv_init || return 1
-    "${HV_TYPE}_resize_disk" "$@"
+    "${HV_FUNC_PREFIX}_resize_disk" "$@"
 }
 
 # Import disk to VM
 # Args: vm_id disk_path storage [disk_index]
 hv_import_disk() {
     hv_init || return 1
-    "${HV_TYPE}_import_disk" "$@"
+    "${HV_FUNC_PREFIX}_import_disk" "$@"
 }
 
 ###############################################################################
@@ -264,21 +269,21 @@ hv_import_disk() {
 # Args: vm_id cloudinit_iso_path
 hv_set_cloudinit() {
     hv_init || return 1
-    "${HV_TYPE}_set_cloudinit" "$@"
+    "${HV_FUNC_PREFIX}_set_cloudinit" "$@"
 }
 
 # Configure cloud-init user
 # Args: vm_id username ssh_keys_file
 hv_set_cloudinit_user() {
     hv_init || return 1
-    "${HV_TYPE}_set_cloudinit_user" "$@"
+    "${HV_FUNC_PREFIX}_set_cloudinit_user" "$@"
 }
 
 # Configure cloud-init network
 # Args: vm_id ip_cidr gateway
 hv_set_cloudinit_network() {
     hv_init || return 1
-    "${HV_TYPE}_set_cloudinit_network" "$@"
+    "${HV_FUNC_PREFIX}_set_cloudinit_network" "$@"
 }
 
 ###############################################################################
@@ -289,14 +294,14 @@ hv_set_cloudinit_network() {
 # Args: vm_id
 hv_create_template() {
     hv_init || return 1
-    "${HV_TYPE}_create_template" "$@"
+    "${HV_FUNC_PREFIX}_create_template" "$@"
 }
 
 # Download and create template from cloud image
 # Args: template_id image_url
 hv_create_template_from_image() {
     hv_init || return 1
-    "${HV_TYPE}_create_template_from_image" "$@"
+    "${HV_FUNC_PREFIX}_create_template_from_image" "$@"
 }
 
 ###############################################################################
@@ -338,8 +343,8 @@ hv_info() {
     hv_init || return 1
     echo "Hypervisor Type: $HV_TYPE"
 
-    if declare -f "${HV_TYPE}_info" >/dev/null 2>&1; then
-        "${HV_TYPE}_info"
+    if declare -f "${HV_FUNC_PREFIX}_info" >/dev/null 2>&1; then
+        "${HV_FUNC_PREFIX}_info"
     fi
 }
 
