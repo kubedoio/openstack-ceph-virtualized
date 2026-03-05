@@ -92,6 +92,18 @@ check_proxmox() {
     local pve_version
     pve_version=$(pveversion 2>/dev/null || echo "unknown")
     info "Proxmox VE detected: $pve_version"
+
+    # Verify qemu-img is available (critical for template conversion)
+    if ! command -v qemu-img >/dev/null 2>&1; then
+        error "qemu-img not found"
+        error "This is required for image conversion (qcow2 to raw)"
+        error ""
+        error "On Proxmox, qemu-img should be provided by pve-qemu-kvm package"
+        error "Try fixing with: apt install --reinstall pve-qemu-kvm"
+        exit 1
+    fi
+
+    info "qemu-img available: $(qemu-img --version | head -n1)"
 }
 
 check_bridges() {
@@ -178,16 +190,37 @@ install_cloud_hypervisor() {
 install_dependencies() {
     info "Installing dependencies..."
 
+    # Check for qemu-img from Proxmox packages first
+    local qemu_img_available=false
+    if command -v qemu-img >/dev/null 2>&1; then
+        qemu_img_available=true
+        info "qemu-img available from Proxmox packages ✓"
+    fi
+
+    # Packages that are safe to install on Proxmox
     local packages=(
-        qemu-utils           # For qemu-img (image conversion)
         genisoimage          # For cloud-init ISO generation
         curl                 # For downloads
         bridge-utils         # For bridge management
     )
 
+    # Only add qemu-utils if qemu-img is not available and we're NOT on Proxmox
+    if [[ "$qemu_img_available" == "false" ]]; then
+        # Check if this is a Proxmox system
+        if command -v pveversion >/dev/null 2>&1; then
+            error "qemu-img not found but this is a Proxmox system"
+            error "Proxmox should provide qemu-img via pve-qemu-kvm package"
+            error "Try: apt install --reinstall pve-qemu-kvm"
+            exit 1
+        else
+            # Not Proxmox, safe to install qemu-utils
+            packages+=(qemu-utils)
+        fi
+    fi
+
     local missing_packages=()
     for pkg in "${packages[@]}"; do
-        if ! dpkg -l | grep -q "^ii  $pkg "; then
+        if ! dpkg -l 2>/dev/null | grep -q "^ii  $pkg "; then
             missing_packages+=("$pkg")
         fi
     done
@@ -199,7 +232,20 @@ install_dependencies() {
 
     info "Installing missing packages: ${missing_packages[*]}"
     apt-get update -qq
-    apt-get install -y "${missing_packages[@]}"
+
+    # Install packages, but avoid removing proxmox-ve
+    if ! apt-get install -y "${missing_packages[@]}" 2>&1 | tee /tmp/apt-install.log; then
+        if grep -q "proxmox-ve" /tmp/apt-install.log; then
+            error "Package installation would remove proxmox-ve"
+            error "This is likely due to qemu-utils conflicting with Proxmox packages"
+            error "Proxmox provides qemu-img via its own packages"
+            rm -f /tmp/apt-install.log
+            exit 1
+        fi
+        rm -f /tmp/apt-install.log
+        exit 1
+    fi
+    rm -f /tmp/apt-install.log
 
     info "Dependencies installed ✓"
 }
