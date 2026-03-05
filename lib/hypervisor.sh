@@ -36,38 +36,59 @@ detect_hypervisor() {
     local config_hv="${HYPERVISOR:-auto}"
 
     if [[ "$config_hv" != "auto" ]]; then
-        # Explicit configuration
+        # Explicit configuration (including aliases)
         case "$config_hv" in
-            proxmox|cloudhypervisor)
+            proxmox|cloudhypervisor|proxmox-cloudhypervisor)
                 echo "$config_hv"
+                return 0
+                ;;
+            # Support aliases for hybrid mode
+            hybrid|pve-ch)
+                echo "proxmox-cloudhypervisor"
                 return 0
                 ;;
             *)
                 echo "ERROR: Unknown hypervisor type: $config_hv" >&2
-                echo "ERROR: Supported: proxmox, cloudhypervisor, auto" >&2
+                echo "ERROR: Supported: proxmox, cloudhypervisor, proxmox-cloudhypervisor, auto" >&2
                 return 1
                 ;;
         esac
     fi
 
     # Auto-detection
+    local has_proxmox=false
+    local has_cloudhypervisor=false
+
     if command -v qm >/dev/null 2>&1; then
-        # Proxmox VE detected
         if qm list >/dev/null 2>&1; then
-            echo "proxmox"
-            return 0
+            has_proxmox=true
         fi
     fi
 
     if command -v cloud-hypervisor >/dev/null 2>&1 || command -v ch-remote >/dev/null 2>&1; then
-        # Cloud Hypervisor detected
+        has_cloudhypervisor=true
+    fi
+
+    # Decide based on what's available
+    if [[ "$has_proxmox" == "true" && "$has_cloudhypervisor" == "true" ]]; then
+        # Both available - default to Proxmox for backward compatibility
+        echo "WARN: Both Proxmox and Cloud Hypervisor detected" >&2
+        echo "WARN: Defaulting to 'proxmox' for backward compatibility" >&2
+        echo "WARN: Set HYPERVISOR=proxmox-cloudhypervisor for hybrid mode" >&2
+        echo "WARN: Set HYPERVISOR=cloudhypervisor for pure Cloud Hypervisor" >&2
+        echo "proxmox"
+        return 0
+    elif [[ "$has_proxmox" == "true" ]]; then
+        echo "proxmox"
+        return 0
+    elif [[ "$has_cloudhypervisor" == "true" ]]; then
         echo "cloudhypervisor"
         return 0
     fi
 
     echo "ERROR: No supported hypervisor detected" >&2
     echo "ERROR: Install Proxmox VE (qm) or Cloud Hypervisor (cloud-hypervisor/ch-remote)" >&2
-    echo "ERROR: Or set HYPERVISOR=proxmox or HYPERVISOR=cloudhypervisor explicitly" >&2
+    echo "ERROR: Or set HYPERVISOR explicitly (proxmox, cloudhypervisor, proxmox-cloudhypervisor)" >&2
     return 1
 }
 
@@ -300,6 +321,18 @@ hv_is_cloudhypervisor() {
     [[ "$HV_TYPE" == "cloudhypervisor" ]]
 }
 
+# Check if using Hybrid mode (Proxmox-CloudHypervisor)
+hv_is_hybrid() {
+    hv_init || return 1
+    [[ "$HV_TYPE" == "proxmox-cloudhypervisor" ]]
+}
+
+# Check if using any Cloud Hypervisor variant (pure or hybrid)
+hv_uses_cloudhypervisor() {
+    hv_init || return 1
+    [[ "$HV_TYPE" == "cloudhypervisor" || "$HV_TYPE" == "proxmox-cloudhypervisor" ]]
+}
+
 # Print hypervisor info
 hv_info() {
     hv_init || return 1
@@ -318,6 +351,8 @@ export -f hv_init
 export -f hv_get_type
 export -f hv_is_proxmox
 export -f hv_is_cloudhypervisor
+export -f hv_is_hybrid
+export -f hv_uses_cloudhypervisor
 export -f hv_info
 
 export -f hv_create_vm

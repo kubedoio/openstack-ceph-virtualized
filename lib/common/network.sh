@@ -371,6 +371,40 @@ validate_tap_name() {
 }
 
 ###############################################################################
+# Bridge Mapping (for Hybrid Mode)
+###############################################################################
+
+# Map logical bridge names to physical bridge names based on hypervisor type
+# Args: logical_bridge_name
+# Returns: physical bridge name
+map_bridge_name() {
+    local logical_bridge="$1"
+    local hypervisor_type="${HV_TYPE:-}"
+
+    case "$hypervisor_type" in
+        proxmox-cloudhypervisor)
+            # Hybrid mode: Map Cloud Hypervisor logical names to Proxmox physical names
+            case "$logical_bridge" in
+                chbr1199)
+                    echo "${HYBRID_BRIDGE_INTERNAL:-vmbr1199}"
+                    ;;
+                chbr2199)
+                    echo "${HYBRID_BRIDGE_EXTERNAL:-vmbr2199}"
+                    ;;
+                *)
+                    # Pass through unmapped names
+                    echo "$logical_bridge"
+                    ;;
+            esac
+            ;;
+        *)
+            # Pure Proxmox or pure Cloud Hypervisor: No mapping needed
+            echo "$logical_bridge"
+            ;;
+    esac
+}
+
+###############################################################################
 # Export functions
 ###############################################################################
 
@@ -390,6 +424,8 @@ export -f get_bridge_network
 
 export -f setup_cloudhypervisor_network
 export -f cleanup_cloudhypervisor_network
+
+export -f map_bridge_name
 
 export -f check_root_privileges
 export -f validate_bridge_name

@@ -5,6 +5,7 @@ This repository contains scripts to automate the creation of a 4-node Kubernetes
 
 - **Proxmox VE** - Traditional datacenter hypervisor with web management
 - **Cloud Hypervisor** - Lightweight, modern VMM for cloud-native deployments
+- **Hybrid Mode** - Cloud Hypervisor VMs on Proxmox infrastructure (best of both worlds)
 
 ---
 
@@ -90,6 +91,26 @@ export HYPERVISOR=cloudhypervisor
 ./deploy_openstack.sh
 ```
 
+### Option 3: Hybrid Mode (Cloud Hypervisor on Proxmox)
+
+```bash
+# Clone repository
+git clone https://github.com/senolcolak/openstack-ceph-virtualized.git
+cd openstack-ceph-virtualized
+
+# Setup hybrid mode (installs CH on Proxmox, verifies bridges)
+sudo ./setup-hybrid-mode.sh
+
+# Add your SSH public key
+cat ~/.ssh/id_rsa.pub > pub_keys
+
+# Deploy with hybrid mode (Cloud Hypervisor VMs using Proxmox bridges)
+HYPERVISOR=proxmox-cloudhypervisor ./deploy_rook_ceph.sh
+
+# Deploy OpenStack
+./deploy_openstack.sh
+```
+
 ---
 
 ## 📖 Hypervisor Selection
@@ -105,26 +126,30 @@ HYPERVISOR=proxmox ./deploy_rook_ceph.sh
 
 # Force Cloud Hypervisor
 HYPERVISOR=cloudhypervisor ./deploy_rook_ceph.sh
+
+# Force Hybrid Mode (Cloud Hypervisor on Proxmox)
+HYPERVISOR=proxmox-cloudhypervisor ./deploy_rook_ceph.sh
 ```
 
 Or set in `rook_ceph.conf`:
 
 ```bash
-HYPERVISOR="auto"  # auto, proxmox, cloudhypervisor
+HYPERVISOR="auto"  # auto, proxmox, cloudhypervisor, proxmox-cloudhypervisor
 ```
 
 ---
 
 ## 🔄 Hypervisor Comparison
 
-| Feature | Proxmox VE | Cloud Hypervisor |
-|---------|-----------|------------------|
-| **Installation** | Full OS | Single binary |
-| **Management** | Web GUI + CLI | CLI only |
-| **Setup Time** | Hours | Minutes |
-| **Resource Usage** | ~500MB per VM | ~100MB per VM |
-| **Boot Time** | ~30 seconds | ~20 seconds |
-| **Best For** | Datacenter, production | Bare metal, dev/test |
+| Feature | Proxmox VE | Cloud Hypervisor | Hybrid Mode |
+|---------|-----------|------------------|-------------|
+| **Installation** | Full OS | Single binary | Proxmox + CH binary |
+| **Management** | Web GUI + CLI | CLI only | Web GUI for Proxmox VMs, CLI for CH VMs |
+| **Setup Time** | Hours | Minutes | Minutes (on existing Proxmox) |
+| **Resource Usage** | ~500MB per VM | ~100MB per VM | ~100MB per CH VM |
+| **Boot Time** | ~30 seconds | ~20 seconds | ~20 seconds (CH VMs) |
+| **Best For** | Datacenter, production | Bare metal, dev/test | Mixed workloads, testing |
+| **Network** | Own bridges | Own bridges | Reuses Proxmox bridges |
 
 **Choose Proxmox** if you:
 - Want a web UI for management
@@ -137,11 +162,18 @@ HYPERVISOR="auto"  # auto, proxmox, cloudhypervisor
 - Prefer CLI-driven workflows
 - Need fast iteration for development
 
+**Choose Hybrid Mode** if you:
+- Already have Proxmox installed
+- Want to test Cloud Hypervisor without dedicating hardware
+- Need lightweight VMs alongside Proxmox VMs
+- Want to leverage existing Proxmox network configuration
+
 ---
 
 ## 📚 Documentation
 
 - **[Cloud Hypervisor Guide](docs/CLOUD_HYPERVISOR.md)** - Complete guide for Cloud Hypervisor deployment
+- **[Hybrid Mode Guide](docs/HYBRID_MODE.md)** - Run Cloud Hypervisor on Proxmox infrastructure
 - **[Hypervisor Abstraction](docs/HYPERVISOR_ABSTRACTION.md)** - Developer guide for multi-hypervisor architecture
 - **[Project Architecture](docs/ARCHITECTURE.md)** - System design and component overview
 
